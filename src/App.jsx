@@ -1,13 +1,84 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
+import Auth from './Auth.jsx';
+import { supabase, supabaseReady } from './supabaseClient.js';
 
 export default function App() {
+    const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    if (!supabaseReady) {
+      setAuthLoading(false);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthLoading(false);
+    });
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
   const [channels, setChannels] = useState([
     { id: 'general', name: 'general', isPrivate: false },
     { id: 'bac-economie', name: 'bac-economie', isPrivate: true, password: 'admin2027' },
     { id: 'entraide', name: 'entraide', isPrivate: false },
     { id: 'gaming', name: 'gaming', isPrivate: false }
   ]);
+    useEffect(() => {
+    if (!session) return;
+
+    let cancelled = false;
+
+    async function loadChannels() {
+      const { error: setupError } = await supabase.rpc('ensure_default_channels');
+
+      if (setupError) {
+        console.error('Channel setup error:', setupError.message);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('channels')
+        .select('id, name, is_private');
+
+      if (error) {
+        console.error('Channel loading error:', error.message);
+        return;
+      }
+
+      if (!cancelled) {
+        setChannels(current => {
+          const loaded = (data || []).map(ch => ({
+            id: ch.id,
+            name: ch.name,
+            isPrivate: ch.is_private
+          }));
+
+          // نخليو قناة BAC ظاهرة حتى لو المستخدم ما انضمّش ليها بعد
+          if (!loaded.some(ch => ch.id === 'bac-economie')) {
+            const bac = current.find(ch => ch.id === 'bac-economie');
+            if (bac) loaded.push(bac);
+          }
+
+          return loaded;
+        });
+      }
+    }
+
+    loadChannels();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   const [activeChannel, setActiveChannel] = useState('general');
   const [activeTab, setActiveTab] = useState('chat');
@@ -34,6 +105,90 @@ export default function App() {
     entraide: [],
     gaming: []
   });
+    useEffect(() => {
+    if (!session || !activeChannel) return;
+
+    let cancelled = false;
+
+    async function loadMessages() {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('channel_id', activeChannel)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Messages loading error:', error.message);
+        return;
+      }
+
+      if (!cancelled) {
+        const loadedMessages = (data || []).map(msg => ({
+          id: msg.id,
+          user: msg.user_name,
+          user_id: msg.user_id,
+          text: msg.content || '',
+          image: msg.image_url || null,
+          time: new Date(msg.created_at).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+          avatar: (msg.user_name || 'U').charAt(0).toUpperCase(),
+          role: 'Student'
+        }));
+
+        setMessages(prev => ({
+          ...prev,
+          [activeChannel]: loadedMessages
+        }));
+      }
+    }
+
+    loadMessages();
+
+    const channel = supabase
+      .channel(`messages-${activeChannel}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `channel_id=eq.${activeChannel}`
+        },
+        payload => {
+          const msg = payload.new;
+
+          setMessages(prev => {
+            const current = prev[activeChannel] || [];
+            if (current.some(item => item.id === msg.id)) return prev;
+
+            return {
+              ...prev,
+              [activeChannel]: [...current, {
+                id: msg.id,
+                user: msg.user_name,
+                user_id: msg.user_id,
+                text: msg.content || '',
+                image: msg.image_url || null,
+                time: new Date(msg.created_at).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }),
+                avatar: (msg.user_name || 'U').charAt(0).toUpperCase(),
+                role: 'Student'
+              }]
+            };
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [session, activeChannel]);
   const [inputMsg, setInputMsg] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
 
@@ -136,35 +291,73 @@ export default function App() {
     }
   };
 
-  const handleSendMessage = (e) => {
+    const handleSendMessage = async (e) => {
     e.preventDefault();
+
     if (!inputMsg.trim() && !selectedImage) return;
 
-    const isEco = activeChannel === 'bac-economie' || channels.find(c => c.id === activeChannel)?.isPrivate;
+    if (!session?.user) {
+      alert('يجب تسجيل الدخول أولاً');
+      return;
+    }
 
-    const newMsg = {
-      id: Date.now(),
-      user: 'Rayen',
-      text: inputMsg,
-      image: isEco ? selectedImage : null,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      avatar: 'R',
-      role: 'Student'
-    };
+    const user = session.user;
+    const userName =
+      user.user_metadata?.username ||
+      user.user_metadata?.full_name ||
+      user.email?.split('@')[0] ||
+      'Student';
 
-    setMessages(prev => ({
-      ...prev,
-      [activeChannel]: [...(prev[activeChannel] || []), newMsg]
-    }));
+    const { error } = await supabase
+      .from('messages')
+      .insert({
+        channel_id: activeChannel,
+        user_id: user.id,
+        user_name: userName,
+        content: inputMsg.trim(),
+        image_url: null
+      });
+
+    if (error) {
+      console.error('Send message error:', error);
+      alert('لم يتم إرسال الرسالة: ' + error.message);
+      return;
+    }
+
     setInputMsg('');
     setSelectedImage(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
-  const handleDeleteMessage = (id) => {
+
+    const handleDeleteMessage = async (id) => {
+    const message = (messages[activeChannel] || [])
+      .find(msg => msg.id === id);
+
+    if (!message || message.user_id !== session?.user?.id) {
+      alert('تنجم تحذف رسائلك إنت فقط.');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('messages')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', session.user.id);
+
+    if (error) {
+      console.error('Delete message error:', error);
+      alert('تعذّر حذف الرسالة: ' + error.message);
+      return;
+    }
+
     setMessages(prev => ({
       ...prev,
-      [activeChannel]: prev[activeChannel].filter(msg => msg.id !== id)
+      [activeChannel]: (prev[activeChannel] || [])
+        .filter(msg => msg.id !== id)
     }));
   };
 
@@ -217,6 +410,21 @@ export default function App() {
   };
 
   const isCurrentChannelPrivate = channels.find(c => c.id === activeChannel)?.isPrivate;
+
+  if (authLoading) {
+    return <div className="app-container">Loading RAYEN...</div>;
+  }
+
+  if (!supabaseReady) {
+    return <div className="app-container">Supabase is not configured.</div>;
+  }
+
+  if (!session) {
+    return <Auth onAuthSuccess={async () => {
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session);
+    }} />;
+  }
 
   return (
     <div className="app-container">
@@ -327,13 +535,15 @@ export default function App() {
                         <div className="msg-header">
                           <span className="msg-user">{msg.user}</span>
                           <span className="msg-time">{msg.time}</span>
-                          <button 
-                            className="delete-btn" 
-                            title="حذف الرسالة" 
-                            onClick={() => handleDeleteMessage(msg.id)}
-                          >
-                            🗑️
-                          </button>
+                          {msg.user_id === session?.user?.id && (
+  <button
+    className="delete-btn"
+    title="حذف الرسالة"
+    onClick={() => handleDeleteMessage(msg.id)}
+  >
+    🗑️
+  </button>
+)}
                         </div>
                         {msg.text && <div className="msg-text">{msg.text}</div>}
                         {msg.image && (
@@ -484,4 +694,5 @@ export default function App() {
       )}
     </div>
   );
-}
+  }
+      

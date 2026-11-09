@@ -348,3 +348,176 @@ body, html, #root {
   font-weight: bold;
   cursor: pointer;
 }
+
+/* ===== RAYEN AUTH PAGE ===== */
+
+.auth-wrap {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 25px;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(22, 140, 255, 0.16), transparent 35%),
+    radial-gradient(circle at 80% 80%, rgba(0, 217, 255, 0.10), transparent 35%),
+    #070B18;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 38px;
+  background: rgba(13, 20, 40, 0.96);
+  border: 1px solid rgba(22, 140, 255, 0.35);
+  border-radius: 18px;
+  box-shadow: 0 0 40px rgba(0, 140, 255, 0.12);
+}
+
+.brand-mark {
+  width: 55px;
+  height: 55px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 22px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #168CFF, #00D9FF);
+  color: #070B18;
+  font-size: 30px;
+  font-weight: 900;
+  box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+}
+
+.brand-mark span {
+  color: white;
+}
+
+.eyebrow {
+  color: #00D9FF;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+
+.auth-card h1 {
+  color: #EDF5FF;
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+
+.auth-card .muted {
+  color: #8293B3;
+  font-size: 14px;
+  margin-bottom: 25px;
+}
+
+.auth-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.auth-card label {
+  color: #C8D8F0;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.auth-card input {
+  width: 100%;
+  padding: 13px 15px;
+  border-radius: 9px;
+  border: 1px solid rgba(22, 140, 255, 0.3);
+  background: #070B18;
+  color: #EDF5FF;
+  font-size: 14px;
+  outline: none;
+  transition: border 0.2s, box-shadow 0.2s;
+}
+
+.auth-card input:focus {
+  border-color: #00D9FF;
+  box-shadow: 0 0 10px rgba(0, 217, 255, 0.15);
+}
+
+.auth-card .primary {
+  width: 100%;
+  padding: 14px;
+  margin-top: 15px;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #168CFF, #00D9FF);
+  color: #070B18;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.auth-card .primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 20px rgba(0, 217, 255, 0.25);
+}
+
+.auth-card .primary:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.switch-auth {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 22px;
+  color: #8293B3;
+  font-size: 13px;
+}
+
+.text-button {
+  border: none;
+  background: transparent;
+  color: #00D9FF;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.notice {
+  padding: 11px;
+  border-radius: 8px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.notice.error {
+  color: #ff8b8b;
+  background: rgba(255, 70, 70, 0.1);
+  border: 1px solid rgba(255, 70, 70, 0.3);
+}
+
+.notice.success {
+  color: #65e6b0;
+  background: rgba(40, 220, 150, 0.1);
+  border: 1px solid rgba(40, 220, 150, 0.3);
+}
+
+.config-hint {
+  color: #8293B3;
+  font-size: 11px;
+  margin-top: 15px;
+  text-align: center;
+}
+
+@media (max-width: 500px) {
+  .auth-card {
+    padding: 25px 20px;
+  }
+
+  .auth-card h1 {
+    font-size: 27px;
+  }
+}
